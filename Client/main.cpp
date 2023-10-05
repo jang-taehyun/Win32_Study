@@ -8,8 +8,8 @@
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
-WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
-WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
+WCHAR szTitle[MAX_LOADSTRING];                  // 윈도우의 제목 string
+WCHAR szWindowClass[MAX_LOADSTRING];            // 윈도우 클래스의 키 값
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -17,10 +17,10 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
-// SAL 언어(주석 언어) : 해당 variable의 의미를 적어놓은 것
-int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
+// SAL 언어(주석 언어) : 해당 variable, function의 의미를 적어놓은 것
+int APIENTRY wWinMain(_In_ HINSTANCE hInstance,                 // 실행된 프로세스가 시작하는 주소
                      _In_opt_ HINSTANCE hPrevInstance,
-                     _In_ LPWSTR    lpCmdLine,
+                     _In_ LPWSTR    lpCmdLine,                  // 프로그램 시작 시, 들어오는 문자열(추가 명령어)
                      _In_ int       nCmdShow)
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
@@ -31,13 +31,25 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_CLIENT, szWindowClass, MAX_LOADSTRING);
-    MyRegisterClass(hInstance);
+    /*
+    LoadStringW() : ID에 해당된 caption 값을 가져와 해당 string에 넣어주는 function
+    - ID는 string table 내에서 확인 가능
+    */
+    MyRegisterClass(hInstance); // -> 윈도우 구조체(정보) 초기화
 
-    // Perform application initialization:
+    // 윈도우 생성
     if (!InitInstance (hInstance, nCmdShow))
     {
         return FALSE;
     }
+
+    /*
+    * 윈도우는 인터페이스 역할!
+    * -> 인터페이스 : 사용자와 프로그램이 소통할 수 있도록 도와주는 것
+    
+    * 프로세스 != 윈도우
+    * 특정 프로세스는 윈도우를 가질 수도 있고, 아닐 수도 있다.
+    */
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_CLIENT));
 
@@ -77,7 +89,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_CLIENT));
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_CLIENT);
+    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_CLIENT);                             // 메뉴바를 설정하는 곳
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
 
