@@ -49,21 +49,41 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,                 // 실행된 프로세
     
     * 프로세스 != 윈도우
     * 특정 프로세스는 윈도우를 가질 수도 있고, 아닐 수도 있다.
+    * 특정 프로세스는 여러 개의 윈도우를 가질 수 있다.
     */
 
+    /* 단축키 테이블 정보 로딩 */
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_CLIENT));
+    /* 리소스 뷰에서 Accelator 부분에 단축키 table이 존재한다. */
 
     MSG msg;
 
     // Main message loop:
-    while (GetMessage(&msg, nullptr, 0, 0))
+    while (GetMessage(&msg, nullptr, 0, 0))                     // -> message를 받아온다.
     {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
+        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg)) // -> 단축키 message 인지 확인
         {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
+            TranslateMessage(&msg);                             // -> message 분석
+            DispatchMessage(&msg);                              // -> message 처리
         }
     }
+
+    /**
+    * Window OS는 포커싱된 process쪽으로 message들 넣어주고, process는 받은 message를 처리한다.
+    * message 안에는 message가 발생한 윈도우 정보를 가지고 있다.
+    * -> 때문에 message를 발생시킨 윈도우가 message를 처리한다.(프로시저 함수)
+    */
+
+    /**
+    * GetMesaage()의 특징
+    * - message queue에서 message를 확인 될 때까지 대기한다.(메세지가 없으면 종료하지 않고 대기한다.)
+    * - false를 반환하는 경우 : (msg.message == WM_QUIT)이 true인 경우
+    *   -> 프로그램 종료
+    */
+
+    /**
+    * Window OS는 메세지 반응형으로 동작한다.
+    */
 
     return (int) msg.wParam;
 }
@@ -82,7 +102,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.cbSize = sizeof(WNDCLASSEX);
 
     wcex.style          = CS_HREDRAW | CS_VREDRAW;
-    wcex.lpfnWndProc    = WndProc;
+    wcex.lpfnWndProc    = WndProc;                                                  // 프로시져 함수 등록
     wcex.cbClsExtra     = 0;
     wcex.cbWndExtra     = 0;
     wcex.hInstance      = hInstance;
@@ -134,6 +154,11 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 //  WM_DESTROY  - post a quit message and return
 //
 //
+
+/**
+* message에 따라 사용자가 처리를 custom할 수 있다.
+* custom하지 않는 message는 기본 처리기에서 처리
+*/
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
@@ -157,6 +182,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     case WM_PAINT:
         {
+            /**
+            * 윈도우 좌표
+            * - 좌상단 : (0, 0) / 우하단 : (End_Width, End_Height)
+            * - 단위 : pixel
+            *   -> pixel 하나하나는 memory이다!
+            */
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
             // TODO: Add any drawing code that uses hdc here...
@@ -167,7 +198,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         PostQuitMessage(0);
         break;
     default:
-        return DefWindowProc(hWnd, message, wParam, lParam);
+        return DefWindowProc(hWnd, message, wParam, lParam);        // -> 윈도우에서 제공하는 기본 프로시져
     }
     return 0;
 }
