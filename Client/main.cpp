@@ -158,7 +158,14 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 /**
 * message에 따라 사용자가 처리를 custom할 수 있다.
 * custom하지 않는 message는 기본 처리기에서 처리
+* 
+* wParam : 눌린/떼어진 키보드 정보
+* lParam : 마우스 좌표 정보
 */
+
+POINT g_ptObjectPosition = { 500, 300 };
+POINT g_ptObjectScale = { 100,100 };
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
@@ -180,6 +187,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
         }
         break;
+     /* 
+     WM_PAINT message가 발생하는 경우 : 무효화 영역(invalidate)이 발생하는 경우
+     -> 무효화 영역(invalidate)이 발생하는 경우 : 윈도우가 화면 상에서 사라졌다가 다시 나타낼 때
+     */
     case WM_PAINT:
         {
             /**
@@ -187,11 +198,87 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             * - 좌상단 : (0, 0) / 우하단 : (End_Width, End_Height)
             * - 단위 : pixel
             *   -> pixel 하나하나는 memory이다!
+            *      -> pixel 한 칸의 메모리는 RGB가 1byte씩, 총 3byte이다.
+            * 
+            * Handle : kernel object(Window OS에서 만든 객체)을 가르키는 고유한 ID
+            * - Window OS에서 관리하는 Object(kernel object)는 handle을 WIN API에 넣어 control한다.
+            * - kernel object의 형태를 구분하기 위해 각 형태에 맞는 handle 타입이 만들어졌다.(별개의 자료형으로 만들어짐)
+            * 
+            * Device Context : Rendering 작업을 수행하기 위해 필요한 data들의 집합체
+            * - 윈도우에서 Rendering 작업을 하기 위해서는 반드시 Device Context를 이용해야 한다.
+            * - Default PEN과 BRUSH : 검은색 기본 PEN, 하얀색 기본 BRUSH
             */
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
+
             // TODO: Add any drawing code that uses hdc here...
+
+            /*
+            WIN32 SDK에서 Rendering 코드 동작 과정
+            1. Device Context를 생성하고 핸들 값을 받아온다.
+            1. PEN, BRUSH를 생성한다.
+            2. 생성한 PEN과 BRUSH를 Device Context에 연결하고, Default PEN과 BRUSH를 백업한다.
+            3. Rendering 수행
+            4. Device Context에 Default PEN과 BRUSH를 되돌려준다.
+            5. 생성한 PEN과 BRUSH는 삭제한다.
+            */
+
+            // PEN과 BRUSH 생성(생성한 PEN과 BRUSH도 kernel object)
+            // GetStockObject() : 자주 사용하는(또는 이미 메모리 상에 존재하는) PEN, BRUSH 등을 미리 만들어 놓은 Object들을 찾는 function
+            // -> GetStockObject()로 불러온 Object는 삭제 요청을 하면 안된다.
+            HPEN hRedPen = CreatePen(PS_DOT, 3, COLORREF(RGB(0, 255, 255)));
+            // HBRUSH hBlueBrush = CreateSolidBrush(COLORREF(RGB(0, 0, 255)));
+            HBRUSH hBlueBrush = (HBRUSH)GetStockObject(DKGRAY_BRUSH);
+
+            // Device Context와 생성한 PEN과 BRUSH를 연결하고 default PEN과 BRUSH는 백업
+            HPEN hDefaultPen = (HPEN)SelectObject(hdc, hRedPen);
+            HBRUSH hDefaultBrush = (HBRUSH)SelectObject(hdc, hBlueBrush);
+
+            // Rendering
+            Rectangle(hdc,
+                g_ptObjectPosition.x - g_ptObjectScale.x / 2,
+                g_ptObjectPosition.y - g_ptObjectScale.y / 2,
+                g_ptObjectPosition.x + g_ptObjectScale.x / 2,
+                g_ptObjectPosition.y + g_ptObjectScale.y / 2);
+
+            // Device Context와 default PEN과 BRUSH를 다시 연결해주고, 생성한 PEN과 BRUSH는 삭제
+            SelectObject(hdc, hDefaultPen);
+            DeleteObject(hRedPen);
+
+            SelectObject(hdc, hDefaultBrush);
+            // DeleteObject(hBlueBrush);
+
             EndPaint(hWnd, &ps);
+        }
+        break;
+    // 키보드 버튼 down message
+    case WM_KEYDOWN:
+        {
+            switch (wParam)
+            {
+                //  방향키 아래
+                case VK_DOWN:
+                // S 버튼
+                case 'S':
+                    {
+                        g_ptObjectPosition.y += 10;
+                        InvalidateRect(hWnd, nullptr, true);        // -> 강제로 invalidate를 발생시키는 function
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+        break;
+    // 왼쪽 마우스 버튼 down message
+    case WM_LBUTTONDOWN:
+        {
+            // 마우스 X 좌표
+            g_ptObjectPosition.x = LOWORD(lParam);
+            // 마우스 Y 좌표
+            g_ptObjectPosition.y = HIWORD(lParam);
+
+            InvalidateRect(hWnd, nullptr, true);
         }
         break;
     case WM_DESTROY:
