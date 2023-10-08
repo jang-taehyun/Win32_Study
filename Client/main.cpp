@@ -60,26 +60,75 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,                 // 실행된 프로세
     MSG msg;
 
     /**
-    * GetMessage()을 사용하는 도중, 강제로 message를 발생시키는 방법 : Timer를 이용해 강제로 message를 발생시킨다.
-    * -> 1 parameter : 윈도우 handle
-    * -> 2 parameter : Timer ID
-    * -> 3 parameter : 지연시간
-    * -> 4 parameter : Timer 발생 시 같이 호출되는 fucntion pointer
-    * -> SetTimer() 함수에서 3번째 parameter에 1000을 넣으면 Window OS에서는 1초로 인식한다.
+    * GetTickCount() : 현재까지 카운트한 값을 가져온다.
+    * -> Window OS는 1초당 1000을 카운트한다.
     */
-
-    // 타이머 부착
-    SetTimer(g_hwnd, 10, 0, nullptr);
+    DWORD dwPrevCount = GetTickCount();
+    DWORD dwAccCount = 0;
 
     // Main message loop:
-    while (GetMessage(&msg, nullptr, 0, 0))                     // -> message를 받아온다.
+    while (true)
     {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg)) // -> 단축키 message 인지 확인
+        // Message가 있는 경우, Message 처리
+        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
         {
-            TranslateMessage(&msg);                             // -> message 분석
-            DispatchMessage(&msg);                              // -> message 처리
+            DWORD iTime = GetTickCount();
+
+            if (WM_QUIT == msg.message)
+                break;
+
+            if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg)) // -> 단축키 message 인지 확인
+            {
+                TranslateMessage(&msg);                             // -> message 분석
+                DispatchMessage(&msg);                              // -> message 처리
+            }
+
+            dwAccCount += (GetTickCount() - iTime);
+        }
+        // Message가 발생하지 않는 대부분의 시간
+        // Game 코드 수행
+        else
+        {
+            DWORD dwCurCount = GetTickCount();
+
+            if (dwCurCount - dwPrevCount > 1000)
+            {
+                float fRatio = (float)dwAccCount / 1000.f;
+                wchar_t szBuff[50] = {};
+
+                swprintf_s(szBuff, L"비율 : %f", fRatio);
+                SetWindowText(g_hwnd, szBuff);
+
+                dwPrevCount = dwCurCount;
+                dwAccCount = 0;
+            }
         }
     }
+
+    /**
+    * PeekMessage() : 메제시 유무와 관계없이 항상 반환한다.
+    * -> message queue에 message가 있으면 true를, 없으면 false를 반환한다.
+    */
+
+    /**
+    * Exprience) Application 전체 동작 시간 중 Message를 처리하는 시간은 얼마나 차지할까??
+    * 실험 방법)
+    * 1. 현재 Count를 받아온다.
+    * 2. Message를 처리할 때 처리하는 동안 걸린 count를 받는다.
+    * 3. 1초마다, 'Message를 처리한 count'에서 '1초에 센 count'를 나눈 값을 확인한다.
+    * 결과) Message를 처리하는 시간이 거의 10% 내외로 차지한다.(본인 컴퓨터 기준)
+    *
+    * 비동기 처리 vs Message 기반 처리
+    * - 비동기 처리 방식(비동기 함수 사용)을 통해 Application이 focusing되어 있지 않더라도
+        마우스 입력같은 Message를 확인할 수 있고 event를 처리할 수 있다.(Application과 event 처리가 동기화가 되어 있지 않다.)
+    * - but Message 기반 처리는 Application이 focusing이 되어 있지 않다면, 윈도우가 Message를 받을 수 없어 event를 처리할 수 없다.
+    *   -> 반드시 Application이 focusing이 되어 있어야 event를 처리할 수 있다.
+    */
+
+    /**
+    * 디자인 패턴(설계 유형) : 언어에 상관없이 특정 상황에서 대부분의 사람들이 해결하는 방법
+    * 싱글톤 패턴(Singleton pattern)
+    */
 
     /**
     * Window OS는 포커싱된 process쪽으로 message들 넣어주고, process는 받은 message를 처리한다.
@@ -88,18 +137,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,                 // 실행된 프로세
     */
 
     /**
-    * GetMesaage()의 특징
-    * - message queue에서 message를 확인 될 때까지 대기한다.(메세지가 없으면 종료하지 않고 대기한다.)
-    * - false를 반환하는 경우 : (msg.message == WM_QUIT)이 true인 경우
-    *   -> 프로그램 종료
-    */
-
-    /**
     * Window OS는 메세지 반응형으로 동작한다.
     */
-
-    // 타이머 해제
-    KillTimer(g_hwnd, 10);
 
     return (int) msg.wParam;
 }
@@ -292,25 +331,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             EndPaint(hWnd, &ps);
         }
         break;
-    // 키보드 버튼 down message
-    case WM_KEYDOWN:
-        {
-            switch (wParam)
-            {
-                //  방향키 아래
-                case VK_DOWN:
-                // S 버튼
-                case 'S':
-                    {
-                        // g_ptObjectPosition.y += 10;
-                        InvalidateRect(hWnd, nullptr, true);        // -> 강제로 invalidate를 발생시키는 function
-                    }
-                    break;
-                default:
-                    break;
-            }
-        }
-        break;
+
     // 왼쪽 마우스 버튼 down message
     case WM_LBUTTONDOWN:
         {
@@ -356,17 +377,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             InvalidateRect(hWnd, nullptr, true);
         }
         break;
-    // Timer가 발생시키는 messsage
-    case WM_TIMER:
-        {
-            InvalidateRect(hWnd, nullptr, true);
-        }
-        break;
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
     default:
-        return DefWindowProc(hWnd, message, wParam, lParam);        // -> 윈도우에서 제공하는 기본 프로시져
+        return DefWindowProc(hWnd, message, wParam, lParam);
     }
     return 0;
 }
