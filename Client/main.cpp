@@ -8,6 +8,7 @@
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
+HWND g_hwnd;                                    // 메인 윈도우 handle
 WCHAR szTitle[MAX_LOADSTRING];                  // 윈도우의 제목 string
 WCHAR szWindowClass[MAX_LOADSTRING];            // 윈도우 클래스의 키 값
 
@@ -58,6 +59,18 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,                 // 실행된 프로세
 
     MSG msg;
 
+    /**
+    * GetMessage()을 사용하는 도중, 강제로 message를 발생시키는 방법 : Timer를 이용해 강제로 message를 발생시킨다.
+    * -> 1 parameter : 윈도우 handle
+    * -> 2 parameter : Timer ID
+    * -> 3 parameter : 지연시간
+    * -> 4 parameter : Timer 발생 시 같이 호출되는 fucntion pointer
+    * -> SetTimer() 함수에서 3번째 parameter에 1000을 넣으면 Window OS에서는 1초로 인식한다.
+    */
+
+    // 타이머 부착
+    SetTimer(g_hwnd, 10, 0, nullptr);
+
     // Main message loop:
     while (GetMessage(&msg, nullptr, 0, 0))                     // -> message를 받아온다.
     {
@@ -84,6 +97,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,                 // 실행된 프로세
     /**
     * Window OS는 메세지 반응형으로 동작한다.
     */
+
+    // 타이머 해제
+    KillTimer(g_hwnd, 10);
 
     return (int) msg.wParam;
 }
@@ -130,16 +146,16 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
 
-   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+   g_hwnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
       CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
 
-   if (!hWnd)
+   if (!g_hwnd)
    {
       return FALSE;
    }
 
-   ShowWindow(hWnd, nCmdShow);
-   UpdateWindow(hWnd);
+   ShowWindow(g_hwnd, nCmdShow);
+   UpdateWindow(g_hwnd);
 
    return TRUE;
 }
@@ -163,8 +179,23 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 * lParam : 마우스 좌표 정보
 */
 
-POINT g_ptObjectPosition = { 500, 300 };
-POINT g_ptObjectScale = { 100,100 };
+#include <vector>
+using std::vector;
+
+struct tObjInfo
+{
+    POINT g_ptObjectPosition;
+    POINT g_ptObjectScale;
+};
+
+vector<tObjInfo> g_vecInfo;
+
+// 좌상단
+POINT g_ptLT;
+// 우하단
+POINT g_ptRB;
+
+bool bLbtnDown = false;
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -235,11 +266,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             HBRUSH hDefaultBrush = (HBRUSH)SelectObject(hdc, hBlueBrush);
 
             // Rendering
-            Rectangle(hdc,
-                g_ptObjectPosition.x - g_ptObjectScale.x / 2,
-                g_ptObjectPosition.y - g_ptObjectScale.y / 2,
-                g_ptObjectPosition.x + g_ptObjectScale.x / 2,
-                g_ptObjectPosition.y + g_ptObjectScale.y / 2);
+            if (bLbtnDown)
+            {
+                Rectangle(hdc,
+                    g_ptLT.x, g_ptLT.y,
+                    g_ptRB.x, g_ptRB.y);
+            }
+            for (size_t i = 0; i < g_vecInfo.size(); i++)
+            {
+                Rectangle(hdc,
+                    g_vecInfo[i].g_ptObjectPosition.x - g_vecInfo[i].g_ptObjectScale.x / 2,
+                    g_vecInfo[i].g_ptObjectPosition.y - g_vecInfo[i].g_ptObjectScale.y / 2,
+                    g_vecInfo[i].g_ptObjectPosition.x + g_vecInfo[i].g_ptObjectScale.x / 2,
+                    g_vecInfo[i].g_ptObjectPosition.y + g_vecInfo[i].g_ptObjectScale.y / 2);
+            }
+            
 
             // Device Context와 default PEN과 BRUSH를 다시 연결해주고, 생성한 PEN과 BRUSH는 삭제
             SelectObject(hdc, hDefaultPen);
@@ -261,7 +302,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 // S 버튼
                 case 'S':
                     {
-                        g_ptObjectPosition.y += 10;
+                        // g_ptObjectPosition.y += 10;
                         InvalidateRect(hWnd, nullptr, true);        // -> 강제로 invalidate를 발생시키는 function
                     }
                     break;
@@ -274,10 +315,50 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_LBUTTONDOWN:
         {
             // 마우스 X 좌표
-            g_ptObjectPosition.x = LOWORD(lParam);
+            g_ptLT.x= LOWORD(lParam);
             // 마우스 Y 좌표
-            g_ptObjectPosition.y = HIWORD(lParam);
+            g_ptLT.y = HIWORD(lParam);
 
+            bLbtnDown = true;
+        }
+        break;
+    // 마우스 움직임 message
+    case WM_MOUSEMOVE:
+        {
+            /**
+            * 현재 화면이 깜빡거리는 이유는 사람이 화면을 보는 타이밍(인지 시점)이 다르기 때문에
+            * -> 현재 시스템에서 사람이 화면을 보는 타이밍이 Rendering 도중 일 수도 있고, 윈도우를 clear하는 순간일 수도 있고, Rendering이 모두 된 시점 등이다.
+            * -> 즉, Rendering을 하는 윈도우가 1개이기 때문에, 사람에게 Rendering되는 과정이 보여져, 사람이 화면(Rendering된 이미지)를 인지하는 순간과 Rendering되는 과정이
+            *    맞물려 화면이 깜빡이는 것처럼 보이기 때문이다.
+            * -> 해결법 : Rendering 하는 윈도우를 2개를 만들어서, 완성된 이미지만 보여준다. 
+            */
+            if (bLbtnDown)
+            {
+                g_ptRB.x = LOWORD(lParam);
+                g_ptRB.y = HIWORD(lParam);
+
+                
+            }
+            InvalidateRect(hWnd, nullptr, true);
+        }
+        break;
+    // 왼쪽 마우스 버튼 up message
+    case WM_LBUTTONUP:
+        {
+            tObjInfo info = {};
+            info.g_ptObjectPosition.x = (g_ptLT.x + g_ptRB.x) / 2;
+            info.g_ptObjectPosition.y = (g_ptLT.y + g_ptRB.y) / 2;
+            info.g_ptObjectScale.x = abs(g_ptLT.x - g_ptRB.x);
+            info.g_ptObjectScale.y = abs(g_ptLT.y - g_ptRB.y);
+
+            g_vecInfo.push_back(info);
+            bLbtnDown = false;
+            InvalidateRect(hWnd, nullptr, true);
+        }
+        break;
+    // Timer가 발생시키는 messsage
+    case WM_TIMER:
+        {
             InvalidateRect(hWnd, nullptr, true);
         }
         break;
