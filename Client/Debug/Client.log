@@ -1,2 +1,4 @@
-﻿  main.cpp
+﻿  CCore.cpp
+  main.cpp
+  Generating Code...
   Client.vcxproj -> D:\study\Engine\GameEngine\Debug\Client.exe
